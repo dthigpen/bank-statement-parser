@@ -1,0 +1,13 @@
+[project]
+name = "bank-statement-parser"
+version = "0.1.0"
+authors = [{ name = "David Thigpen", email = "davidthigs@gmail.com" }]
+description = "A CLI for exporting transactions from bank statements"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+	'pdf2image==1.17.0',
+	'pytesseract==0.3.10',
+]
+[project.scripts]
+bank-statement-parser = 'bank_statement_parser.bank_statement_parser:_main'
