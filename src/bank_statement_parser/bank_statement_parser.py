@@ -2,7 +2,7 @@ import argparse
 import calendar
 from pathlib import Path
 import json
-from typing import List, Callable
+from typing import List, Callable, Union
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import re
@@ -24,7 +24,7 @@ def import_from_path(module_name, file_path):
     return module
 
 
-class BaseParser(ABC):
+class BaseFileParser(ABC):
 
     @abstractmethod
     def to_text(self, file_path: Path, cache: bool=True) -> str:
@@ -32,6 +32,29 @@ class BaseParser(ABC):
     @abstractmethod
     def to_transactions(self, text: str) -> bool:
         pass
+
+    def read_cache(self, file_path: Path) -> Union[None,str]:
+        pass
+
+    def write_cache(self, file_path: Path, text: str):
+        pass
+        
+    def delete_cache(self, file_path):
+        pass
+
+    def get_text(self, file_path: Path, use_cache: bool = True, clear_cache: bool=False) -> str:
+        if clear_cache:
+            self.delete_cache(file_path)
+        text = None
+        from_cache = False
+        if use_cache:
+            text = self.read_cache(file_path)
+            if text is not None:
+                from_cache = True
+        if text is None:
+            text = self.to_text(file_path)
+        if not from_cache and use_cache and not clear_cache:
+            self.write_cache(file_path, text)
         
 def pdf_to_text(pdf_path: Path, page_min: int=0, page_max: int=None) -> str:
     '''Reads the PDF at the given path and turns it into text using OCR'''
@@ -43,40 +66,36 @@ def pdf_to_text(pdf_path: Path, page_min: int=0, page_max: int=None) -> str:
         text += pytesseract.image_to_string(image)
     return text
 
-class PdfParser(BaseParser):
+class PdfParser(BaseFileParser):
     '''A generic parser for PDF statements'''
     
     def __init__(self, page_min=0, page_max=None):
         super().__init__()
         self.page_min = page_min
         self.page_max = page_max
-        
-    def to_text(self, file_path: Path, use_cache=True):
-        cached_text_file = file_path.parent / (file_path.stem + '.txt')
-        text = None
-        used_cache = False
-        # TODO move cache logic to own fn
-        if use_cache and cached_text_file.is_file():
-            cache_time = int(os.path.getmtime(cached_text_file))
-            file_time = int(os.path.getmtime(file_path))
-            if cache_time >= file_time:
-                used_cache = True
-                print(f'Reading from cache file: {cached_text_file}')
-                text = cached_text_file.read_text()
-                
-        if not used_cache:
-            text = pdf_to_text(file_path, page_min=self.page_min, page_max=self.page_max)
 
-        if use_cache and not used_cache:
-            print(f'Writing cache file: {cached_text_file}')
-            cached_text_file.write_text(text)
-        return text
+    def read_cache(self, file_path: Path) -> str:
+        cached_text_file = file_path.parent / (file_path.stem + '.txt')
+        if cached_text_file.is_file():
+            return cached_text_file.read_text()
+        return None
+        
+    def write_cache(self, file_path: Path, text):
+        cached_text_file = file_path.parent / (file_path.stem + '.txt')
+        cached_text_file.write_text(text)
+        
+    def delete_cache(self, file_path: Path) -> str:
+        cached_text_file = file_path.parent / (file_path.stem + '.txt')
+        cached_text_file.unlink(missing_ok=True)
+        
+    def to_text(self, file_path: Path) -> str:
+        return pdf_to_text(file_path, page_min=self.page_min, page_max=self.page_max)
 
 def PdfTestParser(PdfParser):
     def to_transactions(self, text: str):
         raise ValueError('This parser is only for outputing text!')
 
-def run_parsers(statement_paths: List[Path], parsers: List[BaseParser], output_dir: Path, use_cache=True) -> List[dict]:
+def run_parsers(statement_paths: List[Path], parsers: List[BaseFileParser], output_dir: Path, use_cache: bool=True, clear_cache: bool = False) -> List[dict]:
     # TODO make async
     # TODO use logger
     all_transactions = []
@@ -84,7 +103,7 @@ def run_parsers(statement_paths: List[Path], parsers: List[BaseParser], output_d
         print(f'Processing {pdf_path}')
         transactions_file = pdf_path.parent / (pdf_path.stem + '_transactions.json')
         for parser in parsers:
-            text = parser.to_text(pdf_path, use_cache=use_cache)
+            text = parser.get_text(pdf_path, use_cache=use_cache, clear_cache=clear_cache)
             if text:
                 try:
                     transactions = parser.to_transactions(text)
@@ -114,7 +133,7 @@ def parse_config(config_path: Path) -> dict:
     config = {**DEFAULT_CONFIG, **config}
     return config
 
-def create_parsers(parser_configs: List[dict]) -> List[BaseParser]:
+def create_parsers(parser_configs: List[dict]) -> List[BaseFileParser]:
     parsers = []
     for parser_config in parser_configs:
         parser_class = parser_config['type']
@@ -145,11 +164,13 @@ def output_pdfs_to_text(statement_paths: List[Path]):
     for p in statement_paths:
         parser.to_text(p, use_cache=True)
     
-def _main():
+def main():
     parser = argparse.ArgumentParser(description='A tool to export transactions from bank statements')
     parser.add_argument('statement_paths', nargs='+', type=existing_file, help='Paths to statement files')
     parser.add_argument('-c', '--config', type=existing_file, help='Paths to a config file')
     parser.add_argument('-o', '--output-dir', type=Path, default=Path.cwd(), help='Directory to output transaction files')
+    parser.add_argument('--no-cache', action='store_true', help='Force re-reading and parsing statement files')
+    parser.add_argument('--clear-cache', action='store_true', help='Remove existing cache for each file')
     parser.add_argument('--pdf-to-text', action='store_true', help='Output PDF files as text for reference to build a custom parser. Skips parsing transactions')
     args = parser.parse_args()
     output_dir = args.output_dir
@@ -160,7 +181,7 @@ def _main():
     else:
         config = parse_config(args.config)
         parsers = create_parsers(config.get('parsers', []))
-        run_parsers(statement_paths, parsers, output_dir)
+        run_parsers(statement_paths, parsers, output_dir, use_cache=not args.no_cache, clear_cache=args.clear_cache)
 
     
 if __name__ == '__main__':

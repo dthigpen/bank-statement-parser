@@ -12,69 +12,79 @@ $ ls *.json
 
 ## Installation
 1. Make a new directory and Python environment
-  ```
-  $ mkdir my_finances
-  $ cd my_finances
-  $ python -m venv venv
-  $ source ./venv/bin/activate
-  ```
+    ```
+    $ mkdir my_finances
+    $ cd my_finances
+    $ python -m venv venv
+    $ source ./venv/bin/activate
+    ```
 2. Install `bank-statement-parser`
-  ```
-  $ git clone git@github.com:dthigpen/bank-statement-parser.git
-  $ pip install ./bank-statement-parser
-  ```
+    ```
+    $ git clone git@github.com:dthigpen/bank-statement-parser.git
+    $ pip install ./bank-statement-parser
+    ```
 3. Run `bank-statement-parser` commands. See Usage for details.
-  ```
-  $ bank-statement-parser --help
-  ```
+    ```
+    $ bank-statement-parser --help
+    ```
 
 ## Usage
 
 1. Create a `config.json` file with the following (Feel free to replace `MyBank` with something more meaningful). This will be used to tell bank-statement-parser how to parse your statements.
-  ```json
-  {
-    "parsers": [
-      "type": "MyBankParser",
-      "module_path": "bank_parsers.py"
-    ]
-  }
-  ```
+    ```json
+    {
+        "parsers": [
+            "type": "MyBankParser",
+            "module_path": "bank_parsers.py"
+        ]
+    }
+    ```
 2. Next create `bank_parsers.py`. This will contain the specific logic parsing your own bank's statement into transactions.
-  ```python
-  from bank_statement_parser import PdfParser
+    ```python
+    from bank_statement_parser import PdfParser
 
-  class MyBankParser(PdfParser):
-    def to_transactions(self, text: str):
-      pass
-  ```
+    class MyBankParser(PdfParser):
+        def to_transactions(self, text: str):
+            pass
+    ```
 3. Next generate a sample of text extracted from your bank's PDF statement by running the following. A `.txt` file will be generated in the statement directory.
-  ```
-  $ bank-statement-parser path/to/statement.pdf --pdf-to-text
-  ```
+    ```
+    $ bank-statement-parser path/to/statement.pdf --pdf-to-text
+    ```
 4. Open `statement.txt` in a text editor and find the transactions. For example:
-  ```txt
-  07/11/2024 07/12/2024 SUPER MARKET #12 99.23
-  07/15/2024 07/152024 GAS STATION 45.89
-  ...
-  ```
+    ```txt
+    07/11/2024 07/12/2024 SUPER MARKET #12 99.23
+    07/15/2024 07/152024 GAS STATION 45.89
+    ...
+    ```
 5. Fill in the `to_transactions` function stubbed out earlier with logic to extract these fields and `yield` a transaction for each one.
-  ```python
-  import re
-  from bank_statement_parser import PdfParser
+    ```python
+    import re
+    from bank_statement_parser import PdfParser
 
-  class MyBankParser(PdfParser):
-    def to_transactions(self, text: str):
-      # TODO do something with regular expressions
-      for match in matches:
-        # some more logic
-        yield {
-          'date': date, # e.g. "2024-07-11" format
-          'amount': amount, # e.g. 123.12
-          'description': desc, # e.g. "SUPER MARKET #12"
-          'account': 'My Bank Credit Card',
-        }
-  ```
+    class MyBankParser(PdfParser):
+        def to_transactions(self, text: str):
+            # TODO do something with regular expressions
+            for match in matches:
+                # some more logic
+                yield {
+                    'date': date, # e.g. "2024-07-11" format
+                    'amount': amount, # e.g. 123.12
+                    'description': desc, # e.g. "SUPER MARKET #12"
+                    'account': 'My Bank Credit Card',
+                }
+    ```
 6. Run the parser on the statements. JSON transaction files will populate the current directory.
-  ```
-  $ bank-statement-parser -c config.json path/to/statements/*.pdf
-  ```
+    ```
+    $ bank-statement-parser -c config.json path/to/statements/*.pdf
+    ```
+
+## TODO
+
+- Add a generic regex parser so that custom Python parsers are not needed for each bank.
+- Validate parser output contains all required transaction fields
+- Better caching paradigm
+- Parallel processing
+- Make config module path vs module name more simple
+- Upload to PyPi
+

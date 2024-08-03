@@ -10,4 +10,4 @@ dependencies = [
 	'pytesseract==0.3.10',
 ]
 [project.scripts]
-bank-statement-parser = 'bank_statement_parser.bank_statement_parser:_main'
+bank-statement-parser = 'bank_statement_parser.bank_statement_parser:main'
