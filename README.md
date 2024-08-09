@@ -20,8 +20,7 @@ $ ls *.json
     ```
 2. Install `bank-statement-parser`
     ```
-    $ git clone git@github.com:dthigpen/bank-statement-parser.git
-    $ pip install ./bank-statement-parser
+    $ pip install git+https://github.com/dthigpen/bank-statement-parser
     ```
 3. Run `bank-statement-parser` commands. See Usage for details.
     ```
