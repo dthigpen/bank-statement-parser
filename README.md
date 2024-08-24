@@ -1,5 +1,6 @@
 # bank-statement-parser
-A command line tool to parse bank statements into transactions.
+A command line tool to parse bank statements into JSON formatted transactions. Used as input for the budgeting tool [budget-cli](https://github.com/dthigpen/budget-cli).
+
 ```
 $ bank-statement-parser -c config.json path/to/statements/*.pdf
 $ ls *.json
@@ -8,6 +9,16 @@ $ ls *.json
 2024-06-transactions.json
 2024-07-transactions.json
 ...
+$ cat 2024-04-transactions.json
+[
+	{
+	    "date": "2024-04-06",        
+	    "description": "WM SUPERCENTER #1234",
+	    "amount": 39.45,
+	    "account": "Chase Credit Card"        
+	}
+	...
+]
 ```
 
 ## Installation
