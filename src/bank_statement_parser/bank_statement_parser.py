@@ -63,7 +63,7 @@ class BaseFileParser(ABC):
                 from_cache = True
         if text is None:
             text = self.to_text(file_path)
-        if not from_cache and use_cache:
+        if text and not from_cache and use_cache:
             self.write_cache(file_path, text)
         return text
 
@@ -122,20 +122,28 @@ def run_parsers(statement_paths: List[Path], parsers: List[BaseFileParser], outp
         print(f'Processing {pdf_path}')
         logger.info(f'Processing {pdf_path}')
         transactions_file = pdf_path.parent / (pdf_path.stem + '_transactions.json')
+        found_parser = False
         for parser in parsers:
-            logger.debug(f'Attempting parser: {type(parser).__name__}')
-            text = parser.get_text(pdf_path, use_cache=use_cache, clear_cache=clear_cache)       
-            if text:
-                if only_text:
-                    break
-                try:
-                    transactions = parser.to_transactions(text)
+            try:
+                logger.debug(f'Attempting parser: {type(parser).__name__}')
+                text = parser.get_text(pdf_path, use_cache=use_cache, clear_cache=clear_cache)
+                if text:
+                    if only_text:
+                        break
+                    transactions = list(parser.to_transactions(text))
+                    logger.debug(f'Read {len(transactions)} using {type(parser).__name__}')
                     if transactions:
+                        found_parser = True
+                        logger.debug('Trying no more parsers')
                         all_transactions.extend(transactions)
                         break
-                except ValueError as e:
-                    logger.error(f'Error parsing {pdf_path}: {e}')
-
+                    else:
+                        logger.debug('Trying next parser')
+            except ValueError as e:
+                logger.error(f'Error parsing {pdf_path}: {e}')
+                logger.debug('Trying next parser')
+        if not found_parser:
+            raise ValueError(f'No parser returned transactions for {pdf_path}!')
     month_groups = {}
     for t in all_transactions:
         key = t['date'][:-3] # remove day of month
